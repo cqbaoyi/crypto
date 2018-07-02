@@ -8,6 +8,9 @@
 import websockets, asyncio
 import json
 import pprint
+import threading
+
+import mylock
 
 def gdax_build_request():
     return '{ \
@@ -23,29 +26,36 @@ async def ws_worker_gdax(ob, url):
         await websocket.send(gdax_build_request())
         async for m in websocket:
             j = json.loads(m)
-            print("gdax", len(ob.bids))
-            # the first message is the snapshot of asks and bids
-            if "asks" in j:
-                for order in j["bids"]:
-                    ob.bids[float(order[0])] = float(order[1])
-                for order in j["asks"]:
-                    ob.asks[float(order[0])] = float(order[1])
-            # the second message is channels information
-            elif "channels" in j:
-                continue
-            # all the rest messages are l2update
-            else:
-                j["side"]  = j["changes"][0][0]
-                j["price"] = float(j["changes"][0][1])
-                j["size"]  = float(j["changes"][0][2])
-                # update ob
-                if j["side"] == "buy":
-                    if j["size"] == 0:
-                        del ob.bids[j["price"]]
-                    else:
-                        ob.bids[j["price"]] = j["size"]
+            #print("gdax", len(ob.bids))
+            with mylock.lock:
+                # the first message is the snapshot of asks and bids
+                if "asks" in j:
+                    for order in j["bids"]:
+                        order = list(map(float, order))
+                        ob.bids[order[0]] = order[1]
+                    for order in j["asks"]:
+                        order = list(map(float, order))
+                        ob.asks[order[0]] = order[1]
+                # the second message is channels information
+                elif "channels" in j:
+                    continue
+                # all the rest messages are l2update
                 else:
-                    if j["size"] == 0:
-                        del ob.asks[j["price"]]
+                    j["side"]  = j["changes"][0][0]
+                    j["price"] = float(j["changes"][0][1])
+                    j["size"]  = float(j["changes"][0][2])
+                    # update ob
+                    if j["side"] == "buy":
+                        if j["size"] == 0:
+                            del ob.bids[j["price"]]
+                        else:
+                            ob.bids[j["price"]] = j["size"]
                     else:
-                        ob.asks[j["price"]] = j["size"]
+                        if j["size"] == 0:
+                            del ob.asks[j["price"]]
+                        else:
+                            ob.asks[j["price"]] = j["size"]
+            if ob.bids and ob.asks:
+                ob.bid = max(ob.bids)
+                ob.ask = min(ob.asks)
+                ob.mid = (ob.bid + ob.ask) / 2.0
