@@ -3,7 +3,9 @@
 ## This script aims to provide a general interface of websockets' workers.
 ## Each worker caches a local copy of level2 ob.
 ## Exchanges: gdax, bitfinex
+## Indexation every 1s
 ##
+## 
 ## Yi Bao    06/26/2018
 ##
 ##########################################################################
@@ -13,6 +15,7 @@ import pprint
 import threading
 import time, datetime
 import copy
+import pandas as pd
 
 from gdax import *
 from bitfinex import *
@@ -28,7 +31,8 @@ class ob(object):
         self.bid = [None, None]
         self.ask = [None, None]
         self.mid = None
-        self.crt = None
+        self.crt = list()
+        self.expcrt = None
 
 ''' exchange class '''
 class exchange(object):
@@ -38,8 +42,8 @@ class exchange(object):
         self.ob   = ob()
         self.ws_worker = ws_workers[self.name]
 
-    def start(self):
-        self.thread = threading.Thread(target = start_event_loop, args = [self.ws_worker, self.ob, self.url])
+    def start(self, span):
+        self.thread = threading.Thread(target = start_event_loop, args = [self.ws_worker, self.ob, self.url, span])
         self.thread.start()
 
 def init_ws_workers():
@@ -50,9 +54,9 @@ def init_ws_workers():
 
 ''' generic start_event_loop '''
 ''' Each exchanges has specific requirements of websockets. Initialize each based on the name. '''
-def start_event_loop(ws_worker, ob, url):
+def start_event_loop(ws_worker, ob, url, span):
     asyncio.set_event_loop(asyncio.new_event_loop())
-    asyncio.get_event_loop().run_until_complete(ws_worker(ob, url))
+    asyncio.get_event_loop().run_until_complete(ws_worker(ob, url, span))
 
 
 ''' Initialize a master thread '''
@@ -67,10 +71,11 @@ def master(exchanges, depth):
     while elapsed < 1000:
         ## Consolidated order book
         mids = []
-        crts = []
+        expcrts = []
         for ex in exchanges:
             with mylock.lock:
-                print(ex.name, len(ex.ob.bids), len(ex.ob.asks))
+                print("Exchange:", ex.name)
+                print("bids:", len(ex.ob.bids), "asks:", len(ex.ob.asks))
                 for key in ex.ob.bids:
                     if key not in con_ob.bids:
                         con_ob.bids[key] = ex.ob.bids[key]
@@ -86,7 +91,7 @@ def master(exchanges, depth):
                         if con_ob.asks[key] == 0.0:
                             del con_ob.asks[key]
                 mids.append(ex.ob.mid)
-                crts.append(ex.ob.crt)
+                expcrts.append(ex.ob.expcrt)
 
         ## Indexation
         con_bid = [(p, q) for p, q in con_ob.bids.items()]
@@ -95,7 +100,13 @@ def master(exchanges, depth):
         con_ask.sort(key = lambda x: x[0])
         try:
             index = lib_index.cryptoindex(con_ask, con_bid, depth)
-            print(datetime.datetime.now(), index, mids, crts)
+            print()
+            print("Datetime:", datetime.datetime.now())
+            print("Index:", index)
+            print("mids:", mids)
+            print("exp-crts:", expcrts)
+            print("-" * 60)
+            print()
         except Exception as e:
             print(e)
 
@@ -112,8 +123,9 @@ def main():
     #exchanges = [gdax]
 
     ## Start workers ##
-    gdax.start()
-    bitfinex.start()
+    span = 30    # 30s exp-weighted crt
+    gdax.start(span)
+    bitfinex.start(span)
     ## Start the master thread ##
     depth = 100
     init_master(exchanges, depth)

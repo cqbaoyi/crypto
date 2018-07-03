@@ -9,6 +9,7 @@ import websockets, asyncio
 import json
 import pprint
 import threading
+import pandas as pd
 
 import mylock
 import lib_index
@@ -21,7 +22,7 @@ def bitfinex_build_request():
             "prec": "P0" \
            }'
 
-async def ws_worker_bitfinex(ob, url):
+async def ws_worker_bitfinex(ob, url, span):
     async with websockets.connect(url) as websocket:
         await websocket.send(bitfinex_build_request())
         async for m in websocket:
@@ -66,8 +67,14 @@ async def ws_worker_bitfinex(ob, url):
             if ob.bids and ob.asks:
                 bids = [(p, q) for p, q in ob.bids.items()]
                 asks = [(p, q) for p, q in ob.asks.items()]
-                ob.crt = lib_index.crt(asks, bids)
-                
+                ob.crt.append(lib_index.crt(asks, bids))
+                if len(ob.crt) > span:
+                    ob.crt.pop(0)
+                try:
+                    ob.expcrt = pd.Series(ob.crt).ewm(span = span).mean().iloc[-1] 
+                except:
+                    print("bitfinex expcrt error")
+
                 ob.bid = max(ob.bids)
                 ob.ask = min(ob.asks)
                 ob.mid = (ob.bid + ob.ask) / 2.0
