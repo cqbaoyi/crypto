@@ -11,6 +11,7 @@ import pprint
 import threading
 
 import mylock
+import lib_index
 
 def bitfinex_build_request():
    return '{ \
@@ -63,6 +64,10 @@ async def ws_worker_bitfinex(ob, url):
                             except:
                                 print("Bitfinex exception:", price, "not in asks")
             if ob.bids and ob.asks:
+                bids = [(p, q) for p, q in ob.bids.items()]
+                asks = [(p, q) for p, q in ob.asks.items()]
+                ob.crt = lib_index.crt(asks, bids)
+                
                 ob.bid = max(ob.bids)
                 ob.ask = min(ob.asks)
                 ob.mid = (ob.bid + ob.ask) / 2.0

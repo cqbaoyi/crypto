@@ -28,6 +28,7 @@ class ob(object):
         self.bid = [None, None]
         self.ask = [None, None]
         self.mid = None
+        self.crt = None
 
 ''' exchange class '''
 class exchange(object):
@@ -66,6 +67,7 @@ def master(exchanges, depth):
     while elapsed < 1000:
         ## Consolidated order book
         mids = []
+        crts = []
         for ex in exchanges:
             with mylock.lock:
                 print(ex.name, len(ex.ob.bids), len(ex.ob.asks))
@@ -84,6 +86,7 @@ def master(exchanges, depth):
                         if con_ob.asks[key] == 0.0:
                             del con_ob.asks[key]
                 mids.append(ex.ob.mid)
+                crts.append(ex.ob.crt)
 
         ## Indexation
         con_bid = [(p, q) for p, q in con_ob.bids.items()]
@@ -92,7 +95,7 @@ def master(exchanges, depth):
         con_ask.sort(key = lambda x: x[0])
         try:
             index = lib_index.cryptoindex(con_ask, con_bid, depth)
-            print(datetime.datetime.now(), index, mids)
+            print(datetime.datetime.now(), index, mids, crts)
         except Exception as e:
             print(e)
 

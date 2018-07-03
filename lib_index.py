@@ -7,8 +7,6 @@
 ##  Yi Bao  07/02/2018
 ##
 ######################################
-from pymongo import *
-import pandas as pd
 import numpy as np
 import bisect
 import time
@@ -16,7 +14,6 @@ import time
 ''' compute crypto index using snapshot of asks and bids'''
 def cryptoindex(asks, bids, C = 100, D = 0.005):
     if not asks or not bids:
-        print(asks)
         raise Exception("Exception: empty Order book")
     a_p = [x[0] for x in asks]
     b_p = [x[0] for x in bids]
@@ -45,6 +42,8 @@ def cryptoindex(asks, bids, C = 100, D = 0.005):
 ''' cost of round-trip trade of order book'''
 ''' Ref: liquidity beyond the best quote: A study of the NYSE limit order book '''
 def crt(asks, bids, C = 100):
+    if not asks or not bids:
+        raise Exception("Exception: empty Order book")
     a_p = [x[0] for x in asks]
     b_p = [x[0] for x in bids]
     ''' capped order size '''

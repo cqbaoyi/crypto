@@ -11,6 +11,7 @@ import pprint
 import threading
 
 import mylock
+import lib_index
 
 def gdax_build_request():
     return '{ \
@@ -56,6 +57,10 @@ async def ws_worker_gdax(ob, url):
                         else:
                             ob.asks[j["price"]] = j["size"]
             if ob.bids and ob.asks:
+                bids = [(p, q) for p, q in ob.bids.items()]
+                asks = [(p, q) for p, q in ob.asks.items()]
+                ob.crt = lib_index.crt(asks, bids)                
+                
                 ob.bid = max(ob.bids)
                 ob.ask = min(ob.asks)
                 ob.mid = (ob.bid + ob.ask) / 2.0
